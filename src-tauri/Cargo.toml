@@ -1,6 +1,6 @@
 [package]
 name = "lekh"
-version = "1.0.0"
+version = "0.1.1-beta"
 description = "Lekh — A modern markdown editor"
 authors = ["Lekh"]
 edition = "2021"
