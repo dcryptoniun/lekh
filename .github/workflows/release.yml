@@ -89,7 +89,7 @@ jobs:
         run: npm run tauri android init
         
       - name: Build Android APKs (all architectures)
-        run: npm run tauri android build -- --target aarch64,armv7,i686,x86_64
+        run: npm run tauri android build -- --target aarch64 armv7 i686 x86_64 --split-per-abi --apk
         
       - name: Upload APKs to Release
         uses: softprops/action-gh-release@v2
