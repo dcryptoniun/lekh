@@ -1,0 +1,116 @@
+/* ── Editor Component Styles ────────────────────────────────── */
+
+.editor-wrapper {
+  flex: 1;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+  background: var(--editor-bg);
+}
+
+.editor-wrapper .cm-editor {
+  height: 100%;
+  font-size: var(--cm-font-size, 15px);
+}
+
+.editor-wrapper .cm-editor.cm-focused {
+  outline: none;
+}
+
+.editor-wrapper .cm-scroller {
+  overflow: auto;
+  font-family: var(--font-mono);
+  line-height: 1.7;
+  padding: 0 8px;
+}
+
+/* Smooth scrolling */
+.editor-wrapper .cm-scroller {
+  scroll-behavior: smooth;
+}
+
+/* Make gutters look nice */
+.editor-wrapper .cm-gutters {
+  padding-right: 4px;
+}
+
+/* Active line subtle glow */
+.editor-wrapper .cm-activeLine {
+  border-radius: 2px;
+}
+
+/* Search panel styling */
+.editor-wrapper .cm-panel.cm-search {
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-default);
+  padding: 8px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  animation: fadeInDown 0.2s ease;
+}
+
+.editor-wrapper .cm-panel.cm-search input[type="text"],
+.editor-wrapper .cm-panel.cm-search input[type="search"] {
+  background: var(--bg-inset);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  font-size: var(--font-size-sm);
+  font-family: var(--font-mono);
+  transition: border-color var(--transition-fast);
+}
+
+.editor-wrapper .cm-panel.cm-search input:focus {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px var(--accent-primary-bg);
+}
+
+.editor-wrapper .cm-panel.cm-search button {
+  background: var(--bg-overlay);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.editor-wrapper .cm-panel.cm-search button:hover {
+  background: var(--accent-primary-bg);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.editor-wrapper .cm-panel.cm-search label {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Tooltip animations */
+.editor-wrapper .cm-tooltip {
+  animation: fadeInUp 0.15s ease;
+}
+
+/* Autocomplete styling */
+.editor-wrapper .cm-tooltip-autocomplete > ul {
+  max-height: 240px;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+}
+
+.editor-wrapper .cm-tooltip-autocomplete > ul > li {
+  padding: 4px 12px;
+  line-height: 1.5;
+}
+
+/* Code fold marker */
+.editor-wrapper .cm-foldPlaceholder {
+  font-size: var(--font-size-xs);
+}

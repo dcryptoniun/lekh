@@ -1,0 +1,141 @@
+/* ── App Layout Styles ───────────────────────────────────────── */
+
+.app {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background: var(--bg-base);
+  color: var(--text-primary);
+}
+
+/* Sidebar container */
+.app-sidebar {
+  height: 100%;
+  flex-shrink: 0;
+  overflow: hidden;
+  z-index: var(--z-sidebar);
+}
+
+/* Main content area (right of sidebar) */
+.app-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Editor + Preview container */
+.app-content {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Editor pane */
+.app-editor-pane {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* When in split mode, editor pane gets explicit width */
+.app-content .app-editor-pane[style] {
+  flex: none;
+}
+
+/* Preview pane */
+.app-preview-pane {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border-muted);
+}
+
+.app-content .app-preview-pane[style] {
+  flex: none;
+}
+
+/* Resize handle between editor and preview */
+.app-resize-handle {
+  width: 6px;
+  cursor: col-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  z-index: 5;
+  position: relative;
+  transition: background var(--transition-fast);
+}
+
+.app-resize-handle:hover {
+  background: var(--accent-primary-bg);
+}
+
+.app-resize-handle:hover .app-resize-handle-bar {
+  background: var(--accent-primary);
+  height: 40px;
+}
+
+.app-resize-handle-bar {
+  width: 2px;
+  height: 24px;
+  background: var(--border-default);
+  border-radius: var(--radius-full);
+  transition: all var(--transition-fast);
+}
+
+.app-resize-handle:active .app-resize-handle-bar {
+  background: var(--accent-primary);
+  height: 60px;
+}
+
+/* Zen Mode */
+.app.zen-mode .app-sidebar {
+  display: none;
+}
+
+.app.zen-mode .app-content {
+  border: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .app-sidebar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: var(--z-sidebar);
+    box-shadow: var(--shadow-xl);
+  }
+
+  .app-resize-handle {
+    display: none;
+  }
+
+  .app-content {
+    flex-direction: column;
+  }
+
+  .app-editor-pane,
+  .app-preview-pane {
+    width: 100% !important;
+    border-left: none !important;
+  }
+
+  .app-preview-pane {
+    border-top: 1px solid var(--border-muted);
+  }
+}

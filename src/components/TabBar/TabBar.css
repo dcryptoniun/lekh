@@ -1,0 +1,131 @@
+/* ── TabBar Styles ───────────────────────────────────────────── */
+
+.tabbar {
+  display: flex;
+  align-items: center;
+  height: var(--tabbar-height);
+  min-height: var(--tabbar-height);
+  background: var(--bg-inset);
+  border-bottom: 1px solid var(--border-muted);
+  overflow: hidden;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.tabbar-tabs {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex: 1;
+  scrollbar-width: none;
+}
+
+.tabbar-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  height: 100%;
+  min-width: 100px;
+  max-width: 200px;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  background: transparent;
+  border-right: 1px solid var(--border-muted);
+  cursor: pointer;
+  position: relative;
+  transition: color var(--transition-fast), background var(--transition-fast);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-surface);
+}
+
+.tab.active {
+  color: var(--text-primary);
+  background: var(--bg-base);
+  border-bottom: 2px solid var(--accent-primary);
+}
+
+.tab.active::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--gradient-primary);
+}
+
+.tab-icon {
+  flex-shrink: 0;
+  color: var(--accent-primary);
+  opacity: 0.7;
+}
+
+.tab.active .tab-icon {
+  opacity: 1;
+}
+
+.tab-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.tab-modified {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-warning);
+  flex-shrink: 0;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.tab-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  opacity: 0;
+  transition: opacity var(--transition-fast), background var(--transition-fast), color var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.tab:hover .tab-close {
+  opacity: 1;
+}
+
+.tab-close:hover {
+  background: var(--accent-error);
+  color: white;
+  opacity: 1;
+}
+
+.tabbar-new {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tabbar-height);
+  height: var(--tabbar-height);
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.tabbar-new:hover {
+  color: var(--accent-primary);
+  background: var(--accent-primary-bg);
+}

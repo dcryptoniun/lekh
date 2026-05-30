@@ -1,0 +1,117 @@
+/* ── Command Palette Styles ──────────────────────────────────── */
+
+.command-palette-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: var(--z-command-palette);
+}
+
+.command-palette {
+  position: fixed;
+  top: 15%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 560px;
+  max-width: 90vw;
+  max-height: 440px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl), var(--shadow-glow);
+  z-index: calc(var(--z-command-palette) + 1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.command-palette-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border-muted);
+}
+
+.command-palette-icon {
+  color: var(--accent-primary);
+  flex-shrink: 0;
+}
+
+.command-palette-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  font-size: var(--font-size-lg);
+  color: var(--text-primary);
+  outline: none;
+  font-family: var(--font-sans);
+}
+
+.command-palette-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.command-palette-list {
+  overflow-y: auto;
+  padding: var(--space-2) 0;
+  max-height: 360px;
+}
+
+.command-palette-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-5);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  min-height: 36px;
+}
+
+.command-palette-item:hover,
+.command-palette-item.selected {
+  background: var(--accent-primary-bg);
+}
+
+.command-palette-item-icon {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.command-palette-item.selected .command-palette-item-icon {
+  color: var(--accent-primary);
+}
+
+.command-palette-item-label {
+  flex: 1;
+  font-size: var(--font-size-base);
+  color: var(--text-primary);
+}
+
+.command-palette-item-category {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  padding: 1px 6px;
+  background: var(--bg-overlay);
+  border-radius: var(--radius-sm);
+}
+
+.command-palette-item-shortcut {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  padding: 2px 6px;
+  background: var(--bg-overlay);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius-sm);
+}
+
+.command-palette-empty {
+  padding: var(--space-8) var(--space-5);
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-base);
+}

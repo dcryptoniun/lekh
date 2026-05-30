@@ -1,0 +1,492 @@
+import { useEffect, useCallback, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Sidebar } from './components/Sidebar/Sidebar';
+import { Toolbar } from './components/Toolbar/Toolbar';
+import { TabBar } from './components/TabBar/TabBar';
+import { Editor } from './components/Editor/Editor';
+import { Preview } from './components/Preview/Preview';
+import { StatusBar } from './components/StatusBar/StatusBar';
+import { CommandPalette } from './components/CommandPalette/CommandPalette';
+import { Settings } from './components/Settings/Settings';
+import { Notifications } from './components/Notifications/Notifications';
+import { useUIStore } from './stores/uiStore';
+import { useEditorStore } from './stores/editorStore';
+import { useSettingsStore } from './stores/settingsStore';
+import './App.css';
+
+// Tauri imports - wrapped in try/catch for web fallback
+let openDialog: ((options: any) => Promise<string | null>) | null = null;
+let saveDialog: ((options: any) => Promise<string | null>) | null = null;
+let readTextFile: ((path: string) => Promise<string>) | null = null;
+let writeTextFile: ((path: string, content: string) => Promise<void>) | null = null;
+
+// Dynamically import Tauri APIs
+async function initTauriApis() {
+  try {
+    const dialog = await import('@tauri-apps/plugin-dialog');
+    openDialog = dialog.open as any;
+    saveDialog = dialog.save as any;
+    const fs = await import('@tauri-apps/plugin-fs');
+    readTextFile = fs.readTextFile;
+    writeTextFile = fs.writeTextFile;
+  } catch {
+    console.info('Running in browser mode (no Tauri APIs)');
+  }
+}
+
+function App() {
+  const { viewMode, isSidebarOpen, isZenMode, toggleCommandPalette, addNotification } = useUIStore();
+  const { addTab, getActiveTab, markTabSaved } = useEditorStore();
+  const { settings, loadSettings } = useSettingsStore();
+  const splitRef = useRef<HTMLDivElement>(null);
+  const isResizingRef = useRef(false);
+
+  // Initialize
+  useEffect(() => {
+    loadSettings();
+    initTauriApis();
+  }, []);
+
+  // Sync theme to DOM
+  useEffect(() => {
+    const root = document.documentElement;
+    const applyTheme = () => {
+      const theme = settings.theme === 'system'
+        ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+        : settings.theme;
+      root.setAttribute('data-theme', theme);
+    };
+    applyTheme();
+
+    // Listen for system theme changes when in 'system' mode
+    const mql = window.matchMedia('(prefers-color-scheme: dark)');
+    const systemThemeHandler = () => {
+      if (settings.theme === 'system') applyTheme();
+    };
+    mql.addEventListener('change', systemThemeHandler);
+    return () => mql.removeEventListener('change', systemThemeHandler);
+  }, [settings.theme]);
+
+  // File operations
+  const handleOpenFile = useCallback(async () => {
+    try {
+      if (openDialog && readTextFile) {
+        const filePath = await openDialog({
+          filters: [
+            { name: 'Markdown', extensions: ['md', 'markdown', 'mdx', 'txt'] },
+            { name: 'All Files', extensions: ['*'] },
+          ],
+          multiple: false,
+        });
+
+        if (filePath && typeof filePath === 'string') {
+          const content = await readTextFile(filePath);
+          const name = filePath.split(/[/\\]/).pop() || 'Untitled.md';
+          addTab(name, content, filePath);
+          addNotification('success', `Opened ${name}`);
+        }
+      } else {
+        // Browser fallback
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.md,.markdown,.mdx,.txt';
+        input.onchange = async () => {
+          const file = input.files?.[0];
+          if (file) {
+            const content = await file.text();
+            addTab(file.name, content, null);
+            addNotification('success', `Opened ${file.name}`);
+          }
+        };
+        input.click();
+      }
+    } catch (err) {
+      addNotification('error', `Failed to open file: ${err}`);
+    }
+  }, [addTab, addNotification]);
+
+  const handleSaveFile = useCallback(async () => {
+    const tab = getActiveTab();
+    if (!tab) return;
+
+    try {
+      if (tab.path && writeTextFile) {
+        // Save to existing path
+        await writeTextFile(tab.path, tab.content);
+        markTabSaved(tab.id);
+        addNotification('success', `Saved ${tab.name}`);
+      } else if (saveDialog && writeTextFile) {
+        // Save As dialog
+        const filePath = await saveDialog({
+          filters: [
+            { name: 'Markdown', extensions: ['md'] },
+            { name: 'All Files', extensions: ['*'] },
+          ],
+          defaultPath: tab.name,
+        });
+
+        if (filePath) {
+          await writeTextFile(filePath, tab.content);
+          const name = filePath.split(/[/\\]/).pop() || tab.name;
+          markTabSaved(tab.id, filePath, name);
+          addNotification('success', `Saved ${name}`);
+        }
+      } else {
+        // Browser fallback - download file
+        const blob = new Blob([tab.content], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = tab.name;
+        a.click();
+        URL.revokeObjectURL(url);
+        markTabSaved(tab.id);
+        addNotification('success', `Downloaded ${tab.name}`);
+      }
+    } catch (err) {
+      addNotification('error', `Failed to save: ${err}`);
+    }
+  }, [getActiveTab, markTabSaved, addNotification]);
+
+  const handleExportHtml = useCallback(async () => {
+    const tab = getActiveTab();
+    if (!tab) return;
+
+    try {
+      // Import processMarkdown dynamically
+      const { processMarkdown } = await import('./utils/markdown');
+      const html = await processMarkdown(tab.content);
+      const fullHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${tab.name.replace('.md', '')}</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css">
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 2rem; line-height: 1.7; color: #e6edf3; background: #0d1117; }
+pre { background: #161b22; padding: 1rem; border-radius: 8px; overflow-x: auto; }
+code { font-family: 'JetBrains Mono', monospace; }
+table { border-collapse: collapse; width: 100%; } th, td { border: 1px solid #30363d; padding: 8px 12px; }
+blockquote { border-left: 3px solid #58a6ff; padding-left: 16px; color: #8b949e; }
+img { max-width: 100%; border-radius: 8px; }
+a { color: #58a6ff; }
+</style>
+</head>
+<body>
+${html}
+</body>
+</html>`;
+
+      const blob = new Blob([fullHtml], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = tab.name.replace(/\.(md|markdown)$/i, '.html');
+      a.click();
+      URL.revokeObjectURL(url);
+      addNotification('success', 'Exported as HTML');
+    } catch (err) {
+      addNotification('error', `Export failed: ${err}`);
+    }
+  }, [getActiveTab, addNotification]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const ctrl = e.ctrlKey || e.metaKey;
+
+      // Escape — close command palette
+      if (e.key === 'Escape') {
+        const ui = useUIStore.getState();
+        if (ui.isCommandPaletteOpen) {
+          e.preventDefault();
+          ui.closeCommandPalette();
+          return;
+        }
+        const ss = useSettingsStore.getState();
+        if (ss.isSettingsOpen) {
+          e.preventDefault();
+          ss.closeSettings();
+          return;
+        }
+        // Escape in zen mode exits zen
+        if (ui.isZenMode) {
+          e.preventDefault();
+          ui.toggleZenMode();
+          return;
+        }
+      }
+
+      if (ctrl && e.key === 'p') {
+        e.preventDefault();
+        toggleCommandPalette();
+      } else if (ctrl && e.key === 's') {
+        e.preventDefault();
+        handleSaveFile();
+      } else if (ctrl && e.key === 'o') {
+        e.preventDefault();
+        handleOpenFile();
+      } else if (ctrl && e.key === 'n') {
+        e.preventDefault();
+        addTab();
+      } else if (ctrl && e.key === '1') {
+        e.preventDefault();
+        useUIStore.getState().setViewMode('editor');
+      } else if (ctrl && e.key === '2') {
+        e.preventDefault();
+        useUIStore.getState().setViewMode('split');
+      } else if (ctrl && e.key === '3') {
+        e.preventDefault();
+        useUIStore.getState().setViewMode('preview');
+      } else if (ctrl && e.shiftKey && e.key === 'E') {
+        // Zen mode — Ctrl+Shift+E (not Z which conflicts with redo)
+        e.preventDefault();
+        useUIStore.getState().toggleZenMode();
+      } else if (ctrl && e.key === 'b') {
+        // Toggle sidebar
+        e.preventDefault();
+        useUIStore.getState().toggleSidebar();
+      } else if (e.altKey && e.key === 'z') {
+        // Toggle word wrap
+        e.preventDefault();
+        const s = useSettingsStore.getState();
+        s.updateSetting('wordWrap', !s.settings.wordWrap);
+      } else if (ctrl && e.key === '=') {
+        // Increase font size
+        e.preventDefault();
+        const s = useSettingsStore.getState();
+        s.updateSetting('fontSize', Math.min(s.settings.fontSize + 1, 32));
+      } else if (ctrl && e.key === '-') {
+        // Decrease font size
+        e.preventDefault();
+        const s = useSettingsStore.getState();
+        s.updateSetting('fontSize', Math.max(s.settings.fontSize - 1, 10));
+      } else if (ctrl && e.key === ',') {
+        // Open settings
+        e.preventDefault();
+        useSettingsStore.getState().toggleSettings();
+      } else if (ctrl && e.key === 'w') {
+        // Close current tab
+        e.preventDefault();
+        const tab = useEditorStore.getState().getActiveTab();
+        if (tab) useEditorStore.getState().closeTab(tab.id);
+      }
+    };
+
+    window.addEventListener('keydown', handler);
+
+    // Custom events from toolbar/command palette
+    const onSave = () => handleSaveFile();
+    const onOpen = () => handleOpenFile();
+    const onExport = () => handleExportHtml();
+    window.addEventListener('md-save', onSave);
+    window.addEventListener('md-open', onOpen);
+    window.addEventListener('md-export-html', onExport);
+
+    return () => {
+      window.removeEventListener('keydown', handler);
+      window.removeEventListener('md-save', onSave);
+      window.removeEventListener('md-open', onOpen);
+      window.removeEventListener('md-export-html', onExport);
+    };
+  }, [toggleCommandPalette, handleSaveFile, handleOpenFile, handleExportHtml, addTab]);
+
+  // Auto-save
+  useEffect(() => {
+    if (!settings.autoSave) return;
+
+    const interval = setInterval(() => {
+      const tab = useEditorStore.getState().getActiveTab();
+      if (tab?.isModified && tab.path && writeTextFile) {
+        writeTextFile(tab.path, tab.content)
+          .then(() => {
+            useEditorStore.getState().markTabSaved(tab.id);
+          })
+          .catch(() => {
+            // Silently fail auto-save
+          });
+      }
+    }, settings.autoSaveInterval);
+
+    return () => clearInterval(interval);
+  }, [settings.autoSave, settings.autoSaveInterval]);
+
+  // Drag and drop
+  useEffect(() => {
+    const handleDrop = async (e: DragEvent) => {
+      e.preventDefault();
+      const files = e.dataTransfer?.files;
+      if (!files) return;
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (/\.(md|markdown|mdx|txt)$/i.test(file.name)) {
+          const content = await file.text();
+          addTab(file.name, content, null);
+          addNotification('success', `Opened ${file.name}`);
+        }
+      }
+    };
+
+    const handleDragOver = (e: DragEvent) => {
+      e.preventDefault();
+    };
+
+    window.addEventListener('drop', handleDrop);
+    window.addEventListener('dragover', handleDragOver);
+
+    return () => {
+      window.removeEventListener('drop', handleDrop);
+      window.removeEventListener('dragover', handleDragOver);
+    };
+  }, [addTab, addNotification]);
+
+  // Split pane resizing
+  const handleSplitMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizingRef.current = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    const container = splitRef.current;
+    if (!container) return;
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (!isResizingRef.current || !container) return;
+      const rect = container.getBoundingClientRect();
+      const ratio = ((e.clientX - rect.left) / rect.width) * 100;
+      const clamped = Math.max(25, Math.min(75, ratio));
+      useUIStore.getState().setSplitRatio(clamped);
+    };
+
+    const onMouseUp = () => {
+      isResizingRef.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }, []);
+
+  const splitRatio = useUIStore((s) => s.splitRatio);
+
+  return (
+    <div className={`app ${isZenMode ? 'zen-mode' : ''}`}>
+      {/* Sidebar */}
+      <AnimatePresence>
+        {!isZenMode && isSidebarOpen && (
+          <motion.div
+            className="app-sidebar"
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: 'auto', opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+          >
+            <Sidebar />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Main Area */}
+      <div className="app-main">
+        {/* Toolbar */}
+        <AnimatePresence>
+          {!isZenMode && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+            >
+              <Toolbar />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Tab Bar */}
+        <AnimatePresence>
+          {!isZenMode && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+            >
+              <TabBar />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Editor / Preview Area */}
+        <div className="app-content" ref={splitRef}>
+          {/* Editor */}
+          <AnimatePresence mode="wait">
+            {(viewMode === 'editor' || viewMode === 'split') && (
+              <motion.div
+                key="editor-pane"
+                className="app-editor-pane"
+                style={viewMode === 'split' ? { width: `${splitRatio}%` } : undefined}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <Editor />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Resize Handle */}
+          {viewMode === 'split' && (
+            <div
+              className="app-resize-handle"
+              onMouseDown={handleSplitMouseDown}
+            >
+              <div className="app-resize-handle-bar" />
+            </div>
+          )}
+
+          {/* Preview */}
+          <AnimatePresence mode="wait">
+            {(viewMode === 'preview' || viewMode === 'split') && (
+              <motion.div
+                key="preview-pane"
+                className="app-preview-pane"
+                style={viewMode === 'split' ? { width: `${100 - splitRatio}%` } : undefined}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <Preview />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Status Bar */}
+        <AnimatePresence>
+          {!isZenMode && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+            >
+              <StatusBar />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Overlays */}
+      <CommandPalette />
+      <Settings />
+      <Notifications />
+    </div>
+  );
+}
+
+export default App;

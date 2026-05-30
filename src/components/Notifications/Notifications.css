@@ -1,0 +1,78 @@
+/* ── Notifications ───────────────────────────────────────────── */
+
+.notifications-container {
+  position: fixed;
+  bottom: calc(var(--statusbar-height) + 12px);
+  right: 16px;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+  z-index: var(--z-notification);
+  pointer-events: none;
+}
+
+.notification {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-lg);
+  min-width: 280px;
+  max-width: 420px;
+  pointer-events: auto;
+  backdrop-filter: blur(12px);
+}
+
+.notification-info {
+  border-left: 3px solid var(--accent-info);
+}
+
+.notification-success {
+  border-left: 3px solid var(--accent-success);
+}
+
+.notification-warning {
+  border-left: 3px solid var(--accent-warning);
+}
+
+.notification-error {
+  border-left: 3px solid var(--accent-error);
+}
+
+.notification-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.notification-info .notification-icon { color: var(--accent-info); }
+.notification-success .notification-icon { color: var(--accent-success); }
+.notification-warning .notification-icon { color: var(--accent-warning); }
+.notification-error .notification-icon { color: var(--accent-error); }
+
+.notification-message {
+  flex: 1;
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.notification-close {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  transition: all var(--transition-fast);
+}
+
+.notification-close:hover {
+  color: var(--text-primary);
+  background: var(--bg-overlay);
+}
