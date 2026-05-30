@@ -123,11 +123,14 @@ pub fn run() {
             get_content_stats,
         ])
         .setup(|app| {
-            use tauri::Manager;
-            if let Some(window) = app.get_webview_window("main") {
-                let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/icon.png"))
-                    .expect("failed to load app icon");
-                let _ = window.set_icon(icon);
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            {
+                use tauri::Manager;
+                if let Some(window) = app.get_webview_window("main") {
+                    let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/icon.png"))
+                        .expect("failed to load app icon");
+                    let _ = window.set_icon(icon);
+                }
             }
             Ok(())
         })

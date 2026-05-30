@@ -70,6 +70,8 @@ A modern, beautiful, and blazing-fast markdown editor built for every platform.
 
 Download the latest release for your platform from the [Releases](https://github.com/dcryptoniun/lekh/releases) page.
 
+> **📱 Android Users Note:** The APKs currently provided in the GitHub Releases are **unsigned**. Depending on your Android version, you may need to sign the APK manually before your device allows you to install it, or you may receive a warning during installation.
+
 ### Build from Source
 
 **Prerequisites:**
