@@ -70,7 +70,10 @@ A modern, beautiful, and blazing-fast markdown editor built for every platform.
 
 Download the latest release for your platform from the [Releases](https://github.com/dcryptoniun/lekh/releases) page.
 
-> **📱 Android Users Note:** The APKs currently provided in the GitHub Releases are **unsigned**. Depending on your Android version, you may need to sign the APK manually before your device allows you to install it, or you may receive a warning during installation.
+> **⚠️ Unsigned Binaries Note:** All pre-built binaries (Windows, macOS, Linux, and Android) provided in the GitHub Releases are **unsigned**. 
+> - **Windows:** You may see a Microsoft Defender SmartScreen warning ("Windows protected your PC"). Click "More info" -> "Run anyway".
+> - **macOS:** Gatekeeper may block the app. You may need to bypass this by right-clicking the app and selecting "Open", or by running `xattr -cr /Applications/Lekh.app` in your terminal.
+> - **Android:** Your device may warn you about installing an unsigned APK, or require you to sign it manually depending on your security settings.
 
 ### Build from Source
 
