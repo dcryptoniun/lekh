@@ -82,6 +82,7 @@ export interface EditorSettings {
   bracketMatching: boolean;
   indentWithTabs: boolean;
   previewCodeTheme: string;
+  defaultSaveLocation: string | null;
 }
 
 /** Recent file entry */

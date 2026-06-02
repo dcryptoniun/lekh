@@ -47,6 +47,54 @@ function App() {
     initTauriApis();
   }, []);
 
+  // Handle files opened via OS file association (double-click .md file)
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+
+    (async () => {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const { listen } = await import('@tauri-apps/api/event');
+
+        // Check for files passed on app launch
+        const openedPaths = await invoke<string[]>('get_opened_urls');
+        for (const filePath of openedPaths) {
+          if (/\.(md|markdown|mdx|txt)$/i.test(filePath)) {
+            try {
+              const fileInfo = await invoke<{ name: string; content: string; path: string }>('read_file', { path: filePath });
+              addTab(fileInfo.name, fileInfo.content, fileInfo.path);
+              addNotification('success', `Opened ${fileInfo.name}`);
+            } catch (err) {
+              addNotification('error', `Failed to open ${filePath}: ${err}`);
+            }
+          }
+        }
+
+        // Listen for files opened at runtime (user double-clicks another .md while app is running)
+        unlisten = await listen<string[]>('file-opened', async (event) => {
+          const paths = event.payload;
+          for (const filePath of paths) {
+            if (/\.(md|markdown|mdx|txt)$/i.test(filePath)) {
+              try {
+                const fileInfo = await invoke<{ name: string; content: string; path: string }>('read_file', { path: filePath });
+                addTab(fileInfo.name, fileInfo.content, fileInfo.path);
+                addNotification('success', `Opened ${fileInfo.name}`);
+              } catch (err) {
+                addNotification('error', `Failed to open ${filePath}: ${err}`);
+              }
+            }
+          }
+        }) as unknown as () => void;
+      } catch {
+        // Not in Tauri environment — skip
+      }
+    })();
+
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, [addTab, addNotification]);
+
   // Sync theme to DOM
   useEffect(() => {
     const root = document.documentElement;
@@ -117,12 +165,19 @@ function App() {
         addNotification('success', `Saved ${tab.name}`);
       } else if (saveDialog && writeTextFile) {
         // Save As dialog
+        let defaultPath = tab.name;
+        try {
+          const { join, documentDir } = await import('@tauri-apps/api/path');
+          const baseDir = settings.defaultSaveLocation || await documentDir();
+          defaultPath = await join(baseDir, tab.name);
+        } catch {}
+
         const filePath = await saveDialog({
           filters: [
             { name: 'Markdown', extensions: ['md'] },
             { name: 'All Files', extensions: ['*'] },
           ],
-          defaultPath: tab.name,
+          defaultPath,
         });
 
         if (filePath) {
@@ -146,7 +201,54 @@ function App() {
     } catch (err) {
       addNotification('error', `Failed to save: ${err}`);
     }
-  }, [getActiveTab, markTabSaved, addNotification]);
+  }, [getActiveTab, markTabSaved, addNotification, settings.defaultSaveLocation]);
+
+  const handleSaveAsFile = useCallback(async () => {
+    const tab = getActiveTab();
+    if (!tab) return;
+
+    try {
+      if (saveDialog && writeTextFile) {
+        // Save As dialog
+        let defaultPath = tab.path || tab.name;
+        if (!tab.path) {
+          try {
+            const { join, documentDir } = await import('@tauri-apps/api/path');
+            const baseDir = settings.defaultSaveLocation || await documentDir();
+            defaultPath = await join(baseDir, tab.name);
+          } catch {}
+        }
+
+        const filePath = await saveDialog({
+          filters: [
+            { name: 'Markdown', extensions: ['md'] },
+            { name: 'All Files', extensions: ['*'] },
+          ],
+          defaultPath,
+        });
+
+        if (filePath) {
+          await writeTextFile(filePath, tab.content);
+          const name = filePath.split(/[/\\]/).pop() || tab.name;
+          markTabSaved(tab.id, filePath, name);
+          addNotification('success', `Saved ${name}`);
+        }
+      } else {
+        // Browser fallback - download file
+        const blob = new Blob([tab.content], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = tab.name;
+        a.click();
+        URL.revokeObjectURL(url);
+        markTabSaved(tab.id);
+        addNotification('success', `Downloaded ${tab.name}`);
+      }
+    } catch (err) {
+      addNotification('error', `Failed to save: ${err}`);
+    }
+  }, [getActiveTab, markTabSaved, addNotification, settings.defaultSaveLocation]);
 
   const handleExportHtml = useCallback(async () => {
     const tab = getActiveTab();
@@ -222,6 +324,9 @@ ${html}
       if (ctrl && e.key === 'p') {
         e.preventDefault();
         toggleCommandPalette();
+      } else if (ctrl && e.shiftKey && e.key === 'S') {
+        e.preventDefault();
+        handleSaveAsFile();
       } else if (ctrl && e.key === 's') {
         e.preventDefault();
         handleSaveFile();
@@ -279,19 +384,22 @@ ${html}
 
     // Custom events from toolbar/command palette
     const onSave = () => handleSaveFile();
+    const onSaveAs = () => handleSaveAsFile();
     const onOpen = () => handleOpenFile();
     const onExport = () => handleExportHtml();
     window.addEventListener('md-save', onSave);
+    window.addEventListener('md-save-as', onSaveAs);
     window.addEventListener('md-open', onOpen);
     window.addEventListener('md-export-html', onExport);
 
     return () => {
       window.removeEventListener('keydown', handler);
       window.removeEventListener('md-save', onSave);
+      window.removeEventListener('md-save-as', onSaveAs);
       window.removeEventListener('md-open', onOpen);
       window.removeEventListener('md-export-html', onExport);
     };
-  }, [toggleCommandPalette, handleSaveFile, handleOpenFile, handleExportHtml, addTab]);
+  }, [toggleCommandPalette, handleSaveFile, handleSaveAsFile, handleOpenFile, handleExportHtml, addTab]);
 
   // Auto-save
   useEffect(() => {
@@ -313,13 +421,71 @@ ${html}
     return () => clearInterval(interval);
   }, [settings.autoSave, settings.autoSaveInterval]);
 
-  // Drag and drop
+  // Drag and drop — enhanced with Tauri native + folder support
   useEffect(() => {
+    let tauriUnlisten: (() => void) | null = null;
+
+    // Try to set up Tauri native drag-drop listener
+    (async () => {
+      try {
+        const { listen } = await import('@tauri-apps/api/event');
+        const { invoke } = await import('@tauri-apps/api/core');
+
+        tauriUnlisten = await listen<{ paths: string[] }>('tauri://drag-drop', async (event) => {
+          const paths = event.payload.paths;
+          for (const filePath of paths) {
+            try {
+              const isDir = await invoke<boolean>('is_directory', { path: filePath });
+              if (isDir) {
+                // Open folder in explorer
+                const entries = await invoke<any[]>('list_directory', { path: filePath });
+                useUIStore.getState().setExplorerFolder(filePath, entries);
+                addNotification('success', `Opened folder: ${filePath.split(/[\/\\]/).pop()}`);
+              } else if (/\.(md|markdown|mdx|txt)$/i.test(filePath)) {
+                const fileInfo = await invoke<{ name: string; content: string; path: string }>('read_file', { path: filePath });
+                addTab(fileInfo.name, fileInfo.content, fileInfo.path);
+                addNotification('success', `Opened ${fileInfo.name}`);
+              }
+            } catch (err) {
+              addNotification('error', `Failed to process dropped item: ${err}`);
+            }
+          }
+        }) as unknown as () => void;
+      } catch {
+        // Not in Tauri — fall through to browser handler
+      }
+    })();
+
+    // Browser fallback drag-and-drop
     const handleDrop = async (e: DragEvent) => {
       e.preventDefault();
+
+      // If we are in Tauri, the native `tauri://drag-drop` listener handles it
+      // so we should not process it again here.
+      if ('__TAURI_INTERNALS__' in window) return;
+
+      // Try webkitGetAsEntry for directory support
+      const items = e.dataTransfer?.items;
+      if (items) {
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          const entry = (item as any).webkitGetAsEntry?.() as FileSystemEntry | null;
+          if (entry) {
+            if (entry.isDirectory) {
+              // Recursively read directory files in browser
+              await readBrowserDirectory(entry as FileSystemDirectoryEntry);
+            } else if (entry.isFile) {
+              await readBrowserFileEntry(entry as FileSystemFileEntry);
+            }
+            continue;
+          }
+        }
+        return;
+      }
+
+      // Fallback: plain file list
       const files = e.dataTransfer?.files;
       if (!files) return;
-
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         if (/\.(md|markdown|mdx|txt)$/i.test(file.name)) {
@@ -330,6 +496,35 @@ ${html}
       }
     };
 
+    const readBrowserFileEntry = (fileEntry: FileSystemFileEntry): Promise<void> => {
+      return new Promise((resolve) => {
+        fileEntry.file(async (file) => {
+          if (/\.(md|markdown|mdx|txt)$/i.test(file.name)) {
+            const content = await file.text();
+            addTab(file.name, content, null);
+            addNotification('success', `Opened ${file.name}`);
+          }
+          resolve();
+        }, () => resolve());
+      });
+    };
+
+    const readBrowserDirectory = (dirEntry: FileSystemDirectoryEntry): Promise<void> => {
+      return new Promise((resolve) => {
+        const reader = dirEntry.createReader();
+        reader.readEntries(async (entries) => {
+          for (const entry of entries) {
+            if (entry.isDirectory) {
+              await readBrowserDirectory(entry as FileSystemDirectoryEntry);
+            } else if (entry.isFile) {
+              await readBrowserFileEntry(entry as FileSystemFileEntry);
+            }
+          }
+          resolve();
+        }, () => resolve());
+      });
+    };
+
     const handleDragOver = (e: DragEvent) => {
       e.preventDefault();
     };
@@ -338,6 +533,7 @@ ${html}
     window.addEventListener('dragover', handleDragOver);
 
     return () => {
+      if (tauriUnlisten) tauriUnlisten();
       window.removeEventListener('drop', handleDrop);
       window.removeEventListener('dragover', handleDragOver);
     };

@@ -39,6 +39,13 @@ export function CommandPalette() {
       action: () => window.dispatchEvent(new CustomEvent('md-save')),
     },
     {
+      id: 'save-file-as',
+      label: 'Save As...',
+      shortcut: 'Ctrl+Shift+S',
+      category: 'File',
+      action: () => window.dispatchEvent(new CustomEvent('md-save-as')),
+    },
+    {
       id: 'open-file',
       label: 'Open File',
       shortcut: 'Ctrl+O',

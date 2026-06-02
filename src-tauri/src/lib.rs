@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FileEntry {
@@ -17,6 +18,8 @@ pub struct FileInfo {
     pub name: String,
     pub extension: Option<String>,
 }
+
+struct OpenedUrls(Mutex<Vec<String>>);
 
 /// Read a text file from the given path
 #[tauri::command]
@@ -110,17 +113,36 @@ fn get_content_stats(content: String) -> Result<serde_json::Value, String> {
     }))
 }
 
+/// Retrieve the list of file paths opened via OS file association
+#[tauri::command]
+fn get_opened_urls(state: tauri::State<OpenedUrls>) -> Vec<String> {
+    let urls = state.0.lock().unwrap();
+    urls.clone()
+}
+
+/// Check if a given path is a directory
+#[tauri::command]
+fn is_directory(path: String) -> Result<bool, String> {
+    let p = PathBuf::from(&path);
+    Ok(p.is_dir())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .manage(OpenedUrls(Mutex::new(args)))
         .invoke_handler(tauri::generate_handler![
             read_file,
             write_file,
             list_directory,
             get_content_stats,
+            get_opened_urls,
+            is_directory,
         ])
         .setup(|app| {
             #[cfg(not(any(target_os = "android", target_os = "ios")))]

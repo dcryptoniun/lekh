@@ -21,6 +21,11 @@ export function Editor({ className = '' }: EditorProps) {
     return tab || null;
   });
   const activeTabId = useEditorStore((s) => s.activeTabId);
+  const activeTabIdRef = useRef(activeTabId);
+  useEffect(() => {
+    activeTabIdRef.current = activeTabId;
+  }, [activeTabId]);
+
   const updateTabContent = useEditorStore((s) => s.updateTabContent);
   const updateTabCursor = useEditorStore((s) => s.updateTabCursor);
   const settings = useSettingsStore((s) => s.settings);
@@ -36,14 +41,15 @@ export function Editor({ className = '' }: EditorProps) {
     const themeExts = getThemeExtensions(isDark);
 
     const updateListener = EditorView.updateListener.of((update) => {
-      if (update.docChanged && !isUpdatingRef.current && activeTabId) {
+      const currentTabId = activeTabIdRef.current;
+      if (update.docChanged && !isUpdatingRef.current && currentTabId) {
         const content = update.state.doc.toString();
-        updateTabContent(activeTabId, content);
+        updateTabContent(currentTabId, content);
       }
-      if (update.selectionSet && activeTabId) {
+      if (update.selectionSet && currentTabId) {
         const pos = update.state.selection.main.head;
         const line = update.state.doc.lineAt(pos);
-        updateTabCursor(activeTabId, line.number, pos - line.from + 1);
+        updateTabCursor(currentTabId, line.number, pos - line.from + 1);
       }
     });
 
@@ -99,6 +105,34 @@ export function Editor({ className = '' }: EditorProps) {
       containerRef.current.style.setProperty('--cm-font-size', `${settings.fontSize}px`);
     }
   }, [settings.fontSize]);
+
+  // Listen for search-goto events from the sidebar
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const view = viewRef.current;
+      if (!view) return;
+      const { line, column, matchLength } = (e as CustomEvent).detail as {
+        line: number;
+        column: number;
+        matchLength: number;
+      };
+      try {
+        const lineInfo = view.state.doc.line(line);
+        const from = lineInfo.from + column - 1;
+        const to = from + matchLength;
+        view.dispatch({
+          selection: { anchor: from, head: to },
+          scrollIntoView: true,
+        });
+        view.focus();
+      } catch {
+        // Line out of range — ignore
+      }
+    };
+
+    window.addEventListener('md-search-goto', handler);
+    return () => window.removeEventListener('md-search-goto', handler);
+  }, []);
 
   return (
     <div

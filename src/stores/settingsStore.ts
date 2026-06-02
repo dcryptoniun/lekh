@@ -17,6 +17,7 @@ const DEFAULT_SETTINGS: EditorSettings = {
   bracketMatching: true,
   indentWithTabs: false,
   previewCodeTheme: 'github-dark',
+  defaultSaveLocation: null,
 };
 
 interface SettingsState {

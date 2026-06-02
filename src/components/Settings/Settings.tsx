@@ -47,6 +47,21 @@ export function Settings() {
   const { settings, isSettingsOpen, closeSettings, updateSetting, setTheme, resetSettings } =
     useSettingsStore();
 
+  const handleChooseLocation = async () => {
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const selected = await open({
+        directory: true,
+        multiple: false,
+      });
+      if (selected && typeof selected === 'string') {
+        updateSetting('defaultSaveLocation', selected);
+      }
+    } catch {
+      // browser fallback or error
+    }
+  };
+
   return (
     <AnimatePresence>
       {isSettingsOpen && (
@@ -184,7 +199,23 @@ export function Settings() {
               </div>
 
               <div className="settings-section">
-                <h3 className="settings-section-title">Auto Save</h3>
+                <h3 className="settings-section-title">Files & Saving</h3>
+
+                <SettingsRow label="Default Save Location" description={settings.defaultSaveLocation || 'Documents (Default)'}>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button className="settings-btn-secondary" onClick={handleChooseLocation}>
+                      Choose
+                    </button>
+                    {settings.defaultSaveLocation && (
+                      <button 
+                        className="settings-btn-secondary" 
+                        onClick={() => updateSetting('defaultSaveLocation', null)}
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </SettingsRow>
 
                 <SettingsRow label="Auto Save" description="Automatically save files on change">
                   <Toggle
@@ -206,6 +237,16 @@ export function Settings() {
                     <option value={300000}>5min</option>
                   </select>
                 </SettingsRow>
+              </div>
+
+              <div className="settings-section" style={{ marginTop: '32px', paddingBottom: '32px' }}>
+                <button 
+                  className="settings-btn-secondary" 
+                  style={{ width: '100%', padding: '10px', color: '#ff7b72', borderColor: '#ff7b7233' }}
+                  onClick={resetSettings}
+                >
+                  Reset All Settings to Defaults
+                </button>
               </div>
             </div>
           </motion.div>

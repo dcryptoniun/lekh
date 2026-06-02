@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ViewMode, SidebarPanel, Notification } from '../types';
+import type { ViewMode, SidebarPanel, Notification, FileEntry } from '../types';
 
 interface UIState {
   viewMode: ViewMode;
@@ -9,6 +9,8 @@ interface UIState {
   isZenMode: boolean;
   splitRatio: number;
   notifications: Notification[];
+  explorerFolderPath: string | null;
+  explorerEntries: Record<string, FileEntry[]>;
 
   // Actions
   setViewMode: (mode: ViewMode) => void;
@@ -21,6 +23,9 @@ interface UIState {
   setSplitRatio: (ratio: number) => void;
   addNotification: (type: Notification['type'], message: string, duration?: number) => void;
   removeNotification: (id: string) => void;
+  setExplorerFolder: (path: string, entries: FileEntry[]) => void;
+  updateExplorerEntries: (dirPath: string, entries: FileEntry[]) => void;
+  clearExplorerFolder: () => void;
 }
 
 export const useUIStore = create<UIState>((set, get) => ({
@@ -31,6 +36,8 @@ export const useUIStore = create<UIState>((set, get) => ({
   isZenMode: false,
   splitRatio: 50,
   notifications: [],
+  explorerFolderPath: null,
+  explorerEntries: {},
 
   setViewMode: (mode: ViewMode) => set({ viewMode: mode }),
 
@@ -82,4 +89,20 @@ export const useUIStore = create<UIState>((set, get) => ({
       notifications: s.notifications.filter((n) => n.id !== id),
     }));
   },
+
+  setExplorerFolder: (path: string, entries: FileEntry[]) => set({
+    explorerFolderPath: path,
+    explorerEntries: { [path]: entries },
+    isSidebarOpen: true,
+    sidebarPanel: 'explorer',
+  }),
+
+  updateExplorerEntries: (dirPath: string, entries: FileEntry[]) => set((s) => ({
+    explorerEntries: { ...s.explorerEntries, [dirPath]: entries },
+  })),
+
+  clearExplorerFolder: () => set({
+    explorerFolderPath: null,
+    explorerEntries: {},
+  }),
 }));
