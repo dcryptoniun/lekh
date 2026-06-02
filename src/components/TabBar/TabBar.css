@@ -129,3 +129,17 @@
   color: var(--accent-primary);
   background: var(--accent-primary-bg);
 }
+
+.tab-rename-input {
+  flex: 1;
+  background: var(--bg-inset);
+  border: 1px solid var(--accent-primary);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  padding: 0 4px;
+  height: 20px;
+  outline: none;
+  min-width: 0;
+  width: 100px;
+}

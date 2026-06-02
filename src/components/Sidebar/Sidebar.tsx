@@ -3,7 +3,7 @@
 // Icon strip + sliding panel (Explorer / Outline / Search)
 // ============================================================
 
-import React, { useMemo, useState, useCallback, type ReactNode } from 'react';
+import React, { useMemo, useState, useCallback, useEffect, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FolderOpen,
@@ -15,6 +15,9 @@ import {
   ChevronDown,
   Folder,
   File as FileIcon,
+  Star,
+  StarOff,
+  Edit2
 } from 'lucide-react';
 
 import { useUIStore } from '../../stores/uiStore';
@@ -173,29 +176,53 @@ function ExplorerPanel(): React.ReactElement {
   const updateExplorerEntries = useUIStore((s) => s.updateExplorerEntries);
   const addTab = useEditorStore((s) => s.addTab);
   const addNotification = useUIStore((s) => s.addNotification);
+  
+  const { settings, addFavoriteFolder, removeFavoriteFolder } = useSettingsStore();
+  const favoriteFolders = settings.favoriteFolders || [];
+  
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState<boolean>(false);
+  const [isFavoritesExpanded, setIsFavoritesExpanded] = useState<boolean>(true);
+  
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; entry: FileEntry | null } | null>(null);
+  const [renameState, setRenameState] = useState<{ path: string; name: string } | null>(null);
 
-  const handleOpenFolder = useCallback(async () => {
+  useEffect(() => {
+    const closeMenu = () => setContextMenu(null);
+    window.addEventListener('click', closeMenu);
+    return () => window.removeEventListener('click', closeMenu);
+  }, []);
+
+  const openFolder = async (folderPath: string) => {
     try {
-      const { open } = await import('@tauri-apps/plugin-dialog');
+      setLoading(true);
       const { invoke } = await import('@tauri-apps/api/core');
-      const folderPath = await open({ directory: true, multiple: false });
-      if (folderPath && typeof folderPath === 'string') {
-        setLoading(true);
-        const entries = await invoke<FileEntry[]>('list_directory', { path: folderPath });
-        setExplorerFolder(folderPath, entries);
-        setExpandedDirs(new Set());
-        setLoading(false);
-        addNotification('success', `Opened folder: ${folderPath.split(/[\/\\]/).pop()}`);
-      }
+      const entries = await invoke<FileEntry[]>('list_directory', { path: folderPath });
+      setExplorerFolder(folderPath, entries);
+      setExpandedDirs(new Set());
+      setLoading(false);
+      addNotification('success', `Opened folder: ${folderPath.split(/[\/\\]/).pop()}`);
     } catch (err) {
       setLoading(false);
       addNotification('error', `Failed to open folder: ${err}`);
     }
+  };
+
+  const handleOpenFolderDialog = useCallback(async () => {
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const folderPath = await open({ directory: true, multiple: false });
+      if (folderPath && typeof folderPath === 'string') {
+        await openFolder(folderPath);
+      }
+    } catch (err) {
+      addNotification('error', `Dialog failed: ${err}`);
+    }
   }, [setExplorerFolder, addNotification]);
 
   const handleToggleDir = useCallback(async (dirPath: string) => {
+    if (renameState?.path === dirPath) return; // Don't toggle when renaming
+    
     const isExpanded = expandedDirs.has(dirPath);
     if (isExpanded) {
       setExpandedDirs((prev) => {
@@ -220,9 +247,10 @@ function ExplorerPanel(): React.ReactElement {
         }
       }
     }
-  }, [expandedDirs, explorerEntries, updateExplorerEntries, addNotification]);
+  }, [expandedDirs, explorerEntries, updateExplorerEntries, addNotification, renameState]);
 
   const handleFileClick = useCallback(async (entry: FileEntry) => {
+    if (renameState?.path === entry.path) return;
     try {
       const { invoke } = await import('@tauri-apps/api/core');
       const fileInfo = await invoke<{ path: string; content: string; name: string }>('read_file', { path: entry.path });
@@ -231,46 +259,67 @@ function ExplorerPanel(): React.ReactElement {
     } catch (err) {
       addNotification('error', `Failed to open file: ${err}`);
     }
-  }, [addTab, addNotification]);
+  }, [addTab, addNotification, renameState]);
 
-  // If no folder is open, show empty state
-  if (!explorerFolderPath) {
-    return (
-      <>
-        <div className="sidebar-panel-header">
-          <span className="sidebar-panel-title">Explorer</span>
-        </div>
-        <div className="sidebar-panel-content">
-          <div className="sidebar-explorer-empty">
-            <Folder size={40} className="sidebar-explorer-empty-icon" strokeWidth={1.2} />
-            <p className="sidebar-explorer-empty-text">
-              Open a folder to browse files
-            </p>
-            <button
-              className="sidebar-open-folder-btn"
-              onClick={handleOpenFolder}
-              aria-label="Open folder"
-            >
-              <FolderOpen size={16} />
-              Open Folder
-            </button>
-          </div>
-        </div>
-      </>
-    );
-  }
+  const handleContextMenu = useCallback((e: React.MouseEvent, entry: FileEntry) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      entry
+    });
+  }, []);
 
-  // Folder is open — render tree
-  const folderName = explorerFolderPath.split(/[\/\\]/).pop() || 'Folder';
-  const rootEntries = explorerEntries[explorerFolderPath] || [];
+  const handleRenameSubmit = async (oldPath: string, newName: string) => {
+    if (!newName.trim() || newName === renameState?.name) {
+      setRenameState(null);
+      return;
+    }
+    
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const oldPathParts = oldPath.split(/[\/\\]/);
+      oldPathParts.pop();
+      const parentDir = oldPathParts.join('/');
+      const newPath = `${parentDir}/${newName}`;
+      
+      await invoke('rename_file', { oldPath, newPath });
+      
+      // Refresh the parent directory
+      if (explorerEntries[parentDir]) {
+        const entries = await invoke<FileEntry[]>('list_directory', { path: parentDir });
+        updateExplorerEntries(parentDir, entries);
+      } else if (explorerFolderPath === parentDir) {
+        const entries = await invoke<FileEntry[]>('list_directory', { path: parentDir });
+        setExplorerFolder(parentDir, entries);
+      } else {
+        // If we can't find exact parent match, refresh root to be safe
+        if (explorerFolderPath) {
+          const entries = await invoke<FileEntry[]>('list_directory', { path: explorerFolderPath });
+          setExplorerFolder(explorerFolderPath, entries);
+        }
+      }
+      
+      addNotification('success', `Renamed to ${newName}`);
+    } catch (err) {
+      addNotification('error', `Failed to rename: ${err}`);
+    } finally {
+      setRenameState(null);
+    }
+  };
+
+  const folderName = explorerFolderPath ? explorerFolderPath.split(/[\/\\]/).pop() || 'Folder' : '';
+  const rootEntries = explorerFolderPath ? explorerEntries[explorerFolderPath] || [] : [];
+  const isCurrentFavorite = explorerFolderPath ? favoriteFolders.some(f => f.path === explorerFolderPath) : false;
 
   return (
     <>
       <div className="sidebar-panel-header">
-        <span className="sidebar-panel-title" title={explorerFolderPath}>{folderName}</span>
+        <span className="sidebar-panel-title">Explorer</span>
         <button
           className="sidebar-panel-header-action"
-          onClick={handleOpenFolder}
+          onClick={handleOpenFolderDialog}
           title="Open different folder"
           aria-label="Open different folder"
         >
@@ -278,26 +327,143 @@ function ExplorerPanel(): React.ReactElement {
         </button>
       </div>
       <div className="sidebar-panel-content">
-        {loading ? (
-          <div className="sidebar-explorer-loading">
-            <div className="sidebar-spinner" />
-            <p>Loading…</p>
+        
+        {/* Favorites Section */}
+        <div className="sidebar-favorites-section">
+          <div 
+            className="sidebar-favorites-header"
+            onClick={() => setIsFavoritesExpanded(prev => !prev)}
+          >
+            <span className="sidebar-tree-item-chevron">
+              {isFavoritesExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            </span>
+            <span className="sidebar-favorites-title">Favorites</span>
+          </div>
+          {isFavoritesExpanded && (
+            <div className="sidebar-favorites-list">
+              {favoriteFolders.length === 0 ? (
+                <div className="sidebar-favorites-empty">No favorites yet</div>
+              ) : (
+                favoriteFolders.map(fav => (
+                  <div 
+                    key={fav.path} 
+                    className={`sidebar-favorite-item ${explorerFolderPath === fav.path ? 'active' : ''}`}
+                    onClick={() => openFolder(fav.path)}
+                  >
+                    <Star size={12} className="sidebar-favorite-icon" />
+                    <span className="sidebar-favorite-name" title={fav.path}>{fav.name}</span>
+                    <button 
+                      className="sidebar-favorite-remove"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeFavoriteFolder(fav.path);
+                      }}
+                      title="Remove from favorites"
+                    >
+                      <StarOff size={12} />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="sidebar-divider" style={{ margin: '8px 0', opacity: 0.5 }} />
+
+        {!explorerFolderPath ? (
+          <div className="sidebar-explorer-empty">
+            <Folder size={40} className="sidebar-explorer-empty-icon" strokeWidth={1.2} />
+            <p className="sidebar-explorer-empty-text">
+              Open a folder to browse files
+            </p>
+            <button
+              className="sidebar-open-folder-btn"
+              onClick={handleOpenFolderDialog}
+              aria-label="Open folder"
+            >
+              <FolderOpen size={16} />
+              Open Folder
+            </button>
           </div>
         ) : (
-          <div className="sidebar-file-tree">
-            {rootEntries.map((entry) => (
-              <FileTreeItem
-                key={entry.path}
-                entry={entry}
-                depth={0}
-                expandedDirs={expandedDirs}
-                explorerEntries={explorerEntries}
-                onToggleDir={handleToggleDir}
-                onFileClick={handleFileClick}
-              />
-            ))}
-          </div>
+          <>
+            <div className="sidebar-current-folder-header">
+              <span className="sidebar-current-folder-name" title={explorerFolderPath}>{folderName}</span>
+              <button
+                className={`sidebar-current-folder-fav-btn ${isCurrentFavorite ? 'active' : ''}`}
+                onClick={() => {
+                  if (isCurrentFavorite) {
+                    removeFavoriteFolder(explorerFolderPath);
+                  } else {
+                    addFavoriteFolder(explorerFolderPath, folderName);
+                  }
+                }}
+                title={isCurrentFavorite ? "Remove from Favorites" : "Add to Favorites"}
+              >
+                {isCurrentFavorite ? <Star size={14} fill="currentColor" /> : <Star size={14} />}
+              </button>
+            </div>
+            
+            {loading ? (
+              <div className="sidebar-explorer-loading">
+                <div className="sidebar-spinner" />
+                <p>Loading…</p>
+              </div>
+            ) : (
+              <div className="sidebar-file-tree">
+                {rootEntries.map((entry) => (
+                  <FileTreeItem
+                    key={entry.path}
+                    entry={entry}
+                    depth={0}
+                    expandedDirs={expandedDirs}
+                    explorerEntries={explorerEntries}
+                    onToggleDir={handleToggleDir}
+                    onFileClick={handleFileClick}
+                    onContextMenu={handleContextMenu}
+                    renameState={renameState}
+                    onRenameSubmit={handleRenameSubmit}
+                    onRenameCancel={() => setRenameState(null)}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         )}
+
+        {/* Context Menu */}
+        <AnimatePresence>
+          {contextMenu && (
+            <motion.div
+              className="sidebar-context-menu"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.1 }}
+              style={{
+                position: 'fixed',
+                left: contextMenu.x,
+                top: contextMenu.y,
+                zIndex: 1000
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div 
+                className="sidebar-context-menu-item"
+                onClick={() => {
+                  if (contextMenu.entry) {
+                    setRenameState({ path: contextMenu.entry.path, name: contextMenu.entry.name });
+                  }
+                  setContextMenu(null);
+                }}
+              >
+                <Edit2 size={14} />
+                <span>Rename</span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </>
   );
@@ -312,12 +478,56 @@ interface FileTreeItemProps {
   explorerEntries: Record<string, FileEntry[]>;
   onToggleDir: (path: string) => void;
   onFileClick: (entry: FileEntry) => void;
+  onContextMenu: (e: React.MouseEvent, entry: FileEntry) => void;
+  renameState: { path: string; name: string } | null;
+  onRenameSubmit: (oldPath: string, newName: string) => void;
+  onRenameCancel: () => void;
 }
 
-function FileTreeItem({ entry, depth, expandedDirs, explorerEntries, onToggleDir, onFileClick }: FileTreeItemProps): React.ReactElement {
+function FileTreeItem({ 
+  entry, depth, expandedDirs, explorerEntries, 
+  onToggleDir, onFileClick, onContextMenu,
+  renameState, onRenameSubmit, onRenameCancel
+}: FileTreeItemProps): React.ReactElement {
   const isExpanded = expandedDirs.has(entry.path);
   const children = explorerEntries[entry.path] || [];
   const isMarkdown = /\.(md|markdown|mdx)$/i.test(entry.name);
+  const isRenaming = renameState?.path === entry.path;
+
+  const [renameInput, setRenameInput] = useState(entry.name);
+
+  useEffect(() => {
+    if (isRenaming) {
+      setRenameInput(entry.name);
+    }
+  }, [isRenaming, entry.name]);
+
+  const renderNameOrInput = () => {
+    if (isRenaming) {
+      return (
+        <input
+          autoFocus
+          className="sidebar-rename-input"
+          value={renameInput}
+          onChange={(e) => setRenameInput(e.target.value)}
+          onBlur={() => onRenameSubmit(entry.path, renameInput)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              e.stopPropagation();
+              onRenameSubmit(entry.path, renameInput);
+            } else if (e.key === 'Escape') {
+              e.preventDefault();
+              e.stopPropagation();
+              onRenameCancel();
+            }
+          }}
+          onClick={(e) => e.stopPropagation()}
+        />
+      );
+    }
+    return <span className="sidebar-tree-item-name">{entry.name}</span>;
+  };
 
   if (entry.is_dir) {
     return (
@@ -326,6 +536,7 @@ function FileTreeItem({ entry, depth, expandedDirs, explorerEntries, onToggleDir
           className="sidebar-tree-item sidebar-tree-item--dir"
           style={{ paddingLeft: `${12 + depth * 16}px` }}
           onClick={() => onToggleDir(entry.path)}
+          onContextMenu={(e) => onContextMenu(e, entry)}
           role="button"
           tabIndex={0}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggleDir(entry.path); } }}
@@ -336,7 +547,7 @@ function FileTreeItem({ entry, depth, expandedDirs, explorerEntries, onToggleDir
             {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
           </span>
           <Folder size={14} className="sidebar-tree-item-icon sidebar-tree-item-icon--dir" />
-          <span className="sidebar-tree-item-name">{entry.name}</span>
+          {renderNameOrInput()}
         </div>
         {isExpanded && children.map((child) => (
           <FileTreeItem
@@ -347,6 +558,10 @@ function FileTreeItem({ entry, depth, expandedDirs, explorerEntries, onToggleDir
             explorerEntries={explorerEntries}
             onToggleDir={onToggleDir}
             onFileClick={onFileClick}
+            onContextMenu={onContextMenu}
+            renameState={renameState}
+            onRenameSubmit={onRenameSubmit}
+            onRenameCancel={onRenameCancel}
           />
         ))}
       </>
@@ -358,6 +573,7 @@ function FileTreeItem({ entry, depth, expandedDirs, explorerEntries, onToggleDir
       className={`sidebar-tree-item sidebar-tree-item--file ${isMarkdown ? 'sidebar-tree-item--md' : ''}`}
       style={{ paddingLeft: `${12 + depth * 16 + 16}px` }}
       onClick={() => onFileClick(entry)}
+      onContextMenu={(e) => onContextMenu(e, entry)}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onFileClick(entry); } }}
@@ -367,7 +583,7 @@ function FileTreeItem({ entry, depth, expandedDirs, explorerEntries, onToggleDir
         ? <FileText size={14} className="sidebar-tree-item-icon sidebar-tree-item-icon--md" />
         : <FileIcon size={14} className="sidebar-tree-item-icon" />
       }
-      <span className="sidebar-tree-item-name">{entry.name}</span>
+      {renderNameOrInput()}
     </div>
   );
 }

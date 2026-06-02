@@ -4,7 +4,7 @@ import {
   Bold, Italic, Strikethrough, Code, Link2, Image, List, ListOrdered,
   CheckSquare, Quote, Minus, Table, Heading1, Heading2, Heading3,
   Eye, Split, PenLine, Maximize2, Minimize2, Moon, Sun,
-  Undo2, Redo2, Search, Command, Save
+  Undo2, Redo2, Search, Command, Save, SaveAll
 } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -111,6 +111,10 @@ export function Toolbar() {
     window.dispatchEvent(new CustomEvent('md-save'));
   };
 
+  const handleSaveAs = () => {
+    window.dispatchEvent(new CustomEvent('md-save-as'));
+  };
+
   return (
     <motion.div
       className="toolbar"
@@ -120,6 +124,7 @@ export function Toolbar() {
     >
       <div className="toolbar-group">
         <ToolbarButton icon={<Save size={15} />} tooltip="Save (Ctrl+S)" onClick={handleSave} />
+        <ToolbarButton icon={<SaveAll size={15} />} tooltip="Save As (Ctrl+Shift+S)" onClick={handleSaveAs} />
         <ToolbarSeparator />
         <ToolbarButton icon={<Undo2 size={15} />} tooltip="Undo (Ctrl+Z)" onClick={handleUndo} />
         <ToolbarButton icon={<Redo2 size={15} />} tooltip="Redo (Ctrl+Shift+Z)" onClick={handleRedo} />

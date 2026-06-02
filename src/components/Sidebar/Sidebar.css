@@ -597,3 +597,190 @@
   padding: 0 1px;
   border-radius: 2px;
 }
+
+/* ── Favorites Section ───────────────────────────────────────── */
+
+.sidebar-favorites-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-favorites-header {
+  display: flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  user-select: none;
+  color: var(--text-secondary);
+  transition: color var(--transition-fast);
+}
+
+.sidebar-favorites-header:hover {
+  color: var(--text-primary);
+}
+
+.sidebar-favorites-title {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-left: var(--space-2);
+}
+
+.sidebar-favorites-list {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: var(--space-2);
+}
+
+.sidebar-favorites-empty {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+.sidebar-favorite-item {
+  display: flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-3);
+  padding-left: calc(var(--space-3) + 14px);
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+  min-height: 26px;
+  position: relative;
+}
+
+.sidebar-favorite-item:hover {
+  background: var(--accent-primary-bg);
+  color: var(--text-primary);
+}
+
+.sidebar-favorite-item.active {
+  background: var(--accent-primary-bg);
+  color: var(--accent-primary);
+}
+
+.sidebar-favorite-icon {
+  margin-right: var(--space-2);
+  flex-shrink: 0;
+  color: var(--accent-primary);
+  opacity: 0.8;
+}
+
+.sidebar-favorite-name {
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.sidebar-favorite-remove {
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity var(--transition-fast), color var(--transition-fast);
+}
+
+.sidebar-favorite-item:hover .sidebar-favorite-remove {
+  opacity: 1;
+}
+
+.sidebar-favorite-remove:hover {
+  color: var(--text-primary);
+  background: var(--bg-overlay);
+}
+
+/* ── Current Folder Header ───────────────────────────────────── */
+
+.sidebar-current-folder-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+}
+
+.sidebar-current-folder-name {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.sidebar-current-folder-fav-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.sidebar-current-folder-fav-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-overlay);
+}
+
+.sidebar-current-folder-fav-btn.active {
+  color: var(--accent-primary);
+}
+
+/* ── Context Menu ────────────────────────────────────────────── */
+
+.sidebar-context-menu {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-1) 0;
+  min-width: 150px;
+}
+
+.sidebar-context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.sidebar-context-menu-item:hover {
+  background: var(--accent-primary-bg);
+  color: var(--text-primary);
+}
+
+/* ── Rename Input ────────────────────────────────────────────── */
+
+.sidebar-rename-input {
+  flex: 1;
+  background: var(--bg-inset);
+  border: 1px solid var(--accent-primary);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  padding: 0 4px;
+  height: 20px;
+  outline: none;
+  min-width: 0;
+}

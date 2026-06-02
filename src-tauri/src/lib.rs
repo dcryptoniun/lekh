@@ -127,11 +127,18 @@ fn is_directory(path: String) -> Result<bool, String> {
     Ok(p.is_dir())
 }
 
+/// Rename a file or directory
+#[tauri::command]
+fn rename_file(old_path: String, new_path: String) -> Result<(), String> {
+    fs::rename(&old_path, &new_path).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let args: Vec<String> = std::env::args().skip(1).collect();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -143,6 +150,7 @@ pub fn run() {
             get_content_stats,
             get_opened_urls,
             is_directory,
+            rename_file,
         ])
         .setup(|app| {
             #[cfg(not(any(target_os = "android", target_os = "ios")))]

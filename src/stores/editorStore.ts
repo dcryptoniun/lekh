@@ -120,6 +120,7 @@ interface EditorState {
   updateTabCursor: (id: string, line: number, col: number) => void;
   updateTabScroll: (id: string, pos: number) => void;
   markTabSaved: (id: string, path?: string, name?: string) => void;
+  renameTab: (id: string, path: string, name: string) => void;
   getActiveTab: () => EditorTab | null;
 
   // Content stats
@@ -204,6 +205,14 @@ export const useEditorStore = create<EditorState>((set, get) => {
                 ...(name !== undefined && { name }),
               }
             : t
+        ),
+      }));
+    },
+
+    renameTab: (id: string, path: string, name: string) => {
+      set((state) => ({
+        tabs: state.tabs.map((t) =>
+          t.id === id ? { ...t, path, name } : t
         ),
       }));
     },

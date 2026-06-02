@@ -66,6 +66,11 @@ export interface Command {
 }
 
 /** Editor settings */
+export interface FavoriteFolder {
+  path: string;
+  name: string;
+}
+
 export interface EditorSettings {
   theme: ThemeMode;
   fontSize: number;
@@ -83,6 +88,7 @@ export interface EditorSettings {
   indentWithTabs: boolean;
   previewCodeTheme: string;
   defaultSaveLocation: string | null;
+  favoriteFolders: FavoriteFolder[];
 }
 
 /** Recent file entry */

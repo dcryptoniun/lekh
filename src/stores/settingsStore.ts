@@ -18,12 +18,15 @@ const DEFAULT_SETTINGS: EditorSettings = {
   indentWithTabs: false,
   previewCodeTheme: 'github-dark',
   defaultSaveLocation: null,
+  favoriteFolders: [],
 };
 
 interface SettingsState {
   settings: EditorSettings;
   isSettingsOpen: boolean;
   updateSetting: <K extends keyof EditorSettings>(key: K, value: EditorSettings[K]) => void;
+  addFavoriteFolder: (path: string, name: string) => void;
+  removeFavoriteFolder: (path: string) => void;
   setTheme: (theme: ThemeMode) => void;
   toggleSettings: () => void;
   closeSettings: () => void;
@@ -58,6 +61,29 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   updateSetting: (key, value) => {
     set((state) => {
       const newSettings = { ...state.settings, [key]: value };
+      saveSettingsToStorage(newSettings);
+      return { settings: newSettings };
+    });
+  },
+
+  addFavoriteFolder: (path, name) => {
+    set((state) => {
+      if (state.settings.favoriteFolders.find((f) => f.path === path)) return state;
+      const newSettings = {
+        ...state.settings,
+        favoriteFolders: [...state.settings.favoriteFolders, { path, name }],
+      };
+      saveSettingsToStorage(newSettings);
+      return { settings: newSettings };
+    });
+  },
+
+  removeFavoriteFolder: (path) => {
+    set((state) => {
+      const newSettings = {
+        ...state.settings,
+        favoriteFolders: state.settings.favoriteFolders.filter((f) => f.path !== path),
+      };
       saveSettingsToStorage(newSettings);
       return { settings: newSettings };
     });

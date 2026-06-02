@@ -3,6 +3,9 @@ import { X, RotateCcw } from 'lucide-react';
 import { useSettingsStore } from '../../stores/settingsStore';
 import type { ThemeMode } from '../../types';
 import './Settings.css';
+import { getVersion } from '@tauri-apps/api/app';
+import { check } from '@tauri-apps/plugin-updater';
+import { useState, useEffect } from 'react';
 
 interface SettingsRowProps {
   label: string;
@@ -46,6 +49,33 @@ function Toggle({ checked, onChange }: ToggleProps) {
 export function Settings() {
   const { settings, isSettingsOpen, closeSettings, updateSetting, setTheme, resetSettings } =
     useSettingsStore();
+
+  const [appVersion, setAppVersion] = useState<string>('');
+  const [updateStatus, setUpdateStatus] = useState<string>('');
+
+  useEffect(() => {
+    if (isSettingsOpen) {
+      getVersion().then(setAppVersion).catch(() => setAppVersion('Unknown'));
+      setUpdateStatus('');
+    }
+  }, [isSettingsOpen]);
+
+  const handleCheckUpdate = async () => {
+    try {
+      setUpdateStatus('Checking for updates...');
+      const update = await check();
+      if (update) {
+        setUpdateStatus(`Update available: v${update.version}. Installing...`);
+        await update.downloadAndInstall();
+        setUpdateStatus('Update installed. Please restart the app.');
+      } else {
+        setUpdateStatus('You are on the latest version.');
+      }
+    } catch (e) {
+      setUpdateStatus(`Update check failed.`);
+      console.error(e);
+    }
+  };
 
   const handleChooseLocation = async () => {
     try {
@@ -239,7 +269,7 @@ export function Settings() {
                 </SettingsRow>
               </div>
 
-              <div className="settings-section" style={{ marginTop: '32px', paddingBottom: '32px' }}>
+              <div className="settings-section" style={{ marginTop: '32px', paddingBottom: '16px' }}>
                 <button 
                   className="settings-btn-secondary" 
                   style={{ width: '100%', padding: '10px', color: '#ff7b72', borderColor: '#ff7b7233' }}
@@ -247,6 +277,20 @@ export function Settings() {
                 >
                   Reset All Settings to Defaults
                 </button>
+              </div>
+              
+              <div className="settings-section">
+                <h3 className="settings-section-title">About</h3>
+                <SettingsRow label="Lekh Version" description={`v${appVersion}`}>
+                  <button className="settings-btn-secondary" onClick={handleCheckUpdate}>
+                    Check for Updates
+                  </button>
+                </SettingsRow>
+                {updateStatus && (
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '8px' }}>
+                    {updateStatus}
+                  </div>
+                )}
               </div>
             </div>
           </motion.div>
