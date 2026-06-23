@@ -1,7 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Lekh",
-  "version": "0.1.4",
   "identifier": "com.gerstudio.lekh",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -29,7 +28,11 @@
     "active": true,
     "fileAssociations": [
       {
-        "ext": ["md", "markdown", "mdx"],
+        "ext": [
+          "md",
+          "markdown",
+          "mdx"
+        ],
         "name": "Markdown Document",
         "mimeType": "text/markdown",
         "role": "Editor"

@@ -401,6 +401,93 @@ ${html}
     };
   }, [toggleCommandPalette, handleSaveFile, handleSaveAsFile, handleOpenFile, handleExportHtml, addTab]);
 
+  // File watcher for external changes
+  useEffect(() => {
+    let unwatchers: Record<string, () => void> = {};
+    let isWatching = true;
+    let unsubscribeStore: (() => void) | null = null;
+
+    const setupWatchers = async () => {
+      try {
+        const { watch, readTextFile } = await import('@tauri-apps/plugin-fs');
+        
+        const syncWatchers = async (state: any) => {
+          if (!isWatching) return;
+          const currentPaths = state.tabs.map((t: any) => t.path).filter(Boolean) as string[];
+          
+          for (const path of Object.keys(unwatchers)) {
+            if (!currentPaths.includes(path)) {
+              unwatchers[path]();
+              delete unwatchers[path];
+            }
+          }
+          
+          for (const tab of state.tabs) {
+            if (tab.path && unwatchers[tab.path] === undefined) {
+              const pathToWatch = tab.path;
+              // Prevent race conditions by marking as initializing
+              unwatchers[pathToWatch] = () => {};
+              try {
+                const unwatch = await watch(
+                  pathToWatch,
+                  async (event: any) => {
+                    if (!isWatching) return;
+                    console.log('File watch event:', event);
+                    try {
+                      const currentTab = useEditorStore.getState().tabs.find(t => t.path === pathToWatch);
+                      if (currentTab) {
+                        let newContent = '';
+                        try {
+                          newContent = await readTextFile(pathToWatch);
+                        } catch (err) {
+                          // On Windows, the file might be temporarily locked by the other app
+                          await new Promise(r => setTimeout(r, 500));
+                          newContent = await readTextFile(pathToWatch);
+                        }
+                        if (newContent !== currentTab.content) {
+                          useEditorStore.getState().updateTabContent(currentTab.id, newContent);
+                          useEditorStore.getState().markTabSaved(currentTab.id);
+                          useUIStore.getState().addNotification('info', `File reloaded: ${currentTab.name}`);
+                        }
+                      }
+                    } catch (e) {
+                      console.error('Failed to reload file on external change', e);
+                    }
+                  },
+                  { delayMs: 500 }
+                );
+                // Update with actual unwatch function if still needed
+                if (unwatchers[pathToWatch]) {
+                  unwatchers[pathToWatch] = unwatch;
+                } else {
+                  unwatch(); // Was removed while setting up
+                }
+              } catch (e) {
+                console.error('Failed to set up watcher for', pathToWatch, e);
+                delete unwatchers[pathToWatch];
+              }
+            }
+          }
+        };
+
+        unsubscribeStore = useEditorStore.subscribe(syncWatchers);
+        // Initial sync
+        syncWatchers(useEditorStore.getState());
+
+      } catch (err) {
+        // Not in Tauri or plugin not available
+      }
+    };
+
+    setupWatchers();
+
+    return () => {
+      isWatching = false;
+      if (unsubscribeStore) unsubscribeStore();
+      Object.values(unwatchers).forEach(unwatch => unwatch());
+    };
+  }, []);
+
   // Auto-save
   useEffect(() => {
     if (!settings.autoSave) return;
