@@ -28,8 +28,19 @@ interface UIState {
   clearExplorerFolder: () => void;
 }
 
+const getInitialViewMode = (): ViewMode => {
+  try {
+    const stored = localStorage.getItem('lekh-settings');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (parsed.defaultViewMode) return parsed.defaultViewMode;
+    }
+  } catch {}
+  return 'split';
+};
+
 export const useUIStore = create<UIState>((set, get) => ({
-  viewMode: 'split',
+  viewMode: getInitialViewMode(),
   sidebarPanel: 'explorer',
   isSidebarOpen: true,
   isCommandPaletteOpen: false,

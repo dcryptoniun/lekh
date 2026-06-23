@@ -19,6 +19,9 @@ const DEFAULT_SETTINGS: EditorSettings = {
   previewCodeTheme: 'github-dark',
   defaultSaveLocation: null,
   favoriteFolders: [],
+  rememberWindowSize: true,
+  restoreLastSession: true,
+  defaultViewMode: 'split',
 };
 
 interface SettingsState {

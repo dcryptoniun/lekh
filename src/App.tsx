@@ -44,10 +44,23 @@ function App() {
   // Initialize
   useEffect(() => {
     loadSettings();
-    initTauriApis();
+    initTauriApis().then(async () => {
+      // Check window size setting
+      const settingsState = useSettingsStore.getState().settings;
+      if (!settingsState.rememberWindowSize) {
+        try {
+          const { getCurrentWindow, LogicalSize } = await import('@tauri-apps/api/window');
+          const win = getCurrentWindow();
+          await win.setSize(new LogicalSize(1200, 800));
+          await win.center();
+        } catch (e) {
+          // ignore
+        }
+      }
+    });
   }, []);
 
-  // Handle files opened via OS file association (double-click .md file)
+  // Handle files opened via OS file association (double-click .md file) and session restore
   useEffect(() => {
     let unlisten: (() => void) | null = null;
 
@@ -58,14 +71,63 @@ function App() {
 
         // Check for files passed on app launch
         const openedPaths = await invoke<string[]>('get_opened_urls');
+        let hasOpenedArgFile = false;
         for (const filePath of openedPaths) {
           if (/\.(md|markdown|mdx|txt)$/i.test(filePath)) {
             try {
               const fileInfo = await invoke<{ name: string; content: string; path: string }>('read_file', { path: filePath });
               addTab(fileInfo.name, fileInfo.content, fileInfo.path);
               addNotification('success', `Opened ${fileInfo.name}`);
+              hasOpenedArgFile = true;
             } catch (err) {
               addNotification('error', `Failed to open ${filePath}: ${err}`);
+            }
+          }
+        }
+
+        // If no file was opened via args, try restoring session
+        if (!hasOpenedArgFile) {
+          const settingsState = useSettingsStore.getState().settings;
+          if (settingsState.restoreLastSession) {
+            try {
+              const sessionDataStr = localStorage.getItem('lekh-session');
+              if (sessionDataStr) {
+                const sessionData = JSON.parse(sessionDataStr);
+                
+                // Restore folder
+                if (sessionData.explorerFolder) {
+                  try {
+                    const entries = await invoke<any[]>('list_directory', { path: sessionData.explorerFolder });
+                    useUIStore.getState().setExplorerFolder(sessionData.explorerFolder, entries);
+                  } catch (e) {
+                     console.error('Failed to restore folder:', e);
+                  }
+                }
+                
+                // Restore files
+                if (sessionData.openedFiles && Array.isArray(sessionData.openedFiles) && sessionData.openedFiles.length > 0) {
+                   useEditorStore.setState({ tabs: [], activeTabId: null });
+                   
+                   for (const filePath of sessionData.openedFiles) {
+                      try {
+                        const fileInfo = await invoke<{ name: string; content: string; path: string }>('read_file', { path: filePath });
+                        const id = useEditorStore.getState().addTab(fileInfo.name, fileInfo.content, fileInfo.path);
+                        if (filePath === sessionData.activeFile) {
+                           useEditorStore.getState().setActiveTab(id);
+                        }
+                      } catch (e) {
+                        console.error('Failed to restore file:', e);
+                      }
+                   }
+
+                   // If all failed, ensure at least one tab exists
+                   if (useEditorStore.getState().tabs.length === 0) {
+                     useEditorStore.getState().addTab('Untitled.md', '');
+                   }
+                }
+              }
+            } catch (e) {
+              console.error("Session restore failed", e);
             }
           }
         }
@@ -400,6 +462,43 @@ ${html}
       window.removeEventListener('md-export-html', onExport);
     };
   }, [toggleCommandPalette, handleSaveFile, handleSaveAsFile, handleOpenFile, handleExportHtml, addTab]);
+
+  // Session Persistence
+  useEffect(() => {
+    let saveTimeout: any;
+    
+    const syncSession = () => {
+      const settingsState = useSettingsStore.getState().settings;
+      if (!settingsState.restoreLastSession) return;
+      
+      clearTimeout(saveTimeout);
+      saveTimeout = setTimeout(() => {
+        const { tabs, activeTabId } = useEditorStore.getState();
+        const { explorerFolderPath } = useUIStore.getState();
+        
+        const openedFiles = tabs.map(t => t.path).filter(Boolean) as string[];
+        const activeTab = tabs.find(t => t.id === activeTabId);
+        const activeFile = activeTab?.path || null;
+        
+        const sessionData = {
+          openedFiles,
+          activeFile,
+          explorerFolder: explorerFolderPath
+        };
+        
+        localStorage.setItem('lekh-session', JSON.stringify(sessionData));
+      }, 1000);
+    };
+
+    const unsubEditor = useEditorStore.subscribe(syncSession);
+    const unsubUI = useUIStore.subscribe(syncSession);
+    
+    return () => {
+      unsubEditor();
+      unsubUI();
+      clearTimeout(saveTimeout);
+    };
+  }, []);
 
   // File watcher for external changes
   useEffect(() => {

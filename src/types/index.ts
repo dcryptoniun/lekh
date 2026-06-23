@@ -89,6 +89,9 @@ export interface EditorSettings {
   previewCodeTheme: string;
   defaultSaveLocation: string | null;
   favoriteFolders: FavoriteFolder[];
+  rememberWindowSize: boolean;
+  restoreLastSession: boolean;
+  defaultViewMode: ViewMode;
 }
 
 /** Recent file entry */

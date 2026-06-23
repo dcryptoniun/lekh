@@ -229,7 +229,33 @@ export function Settings() {
               </div>
 
               <div className="settings-section">
-                <h3 className="settings-section-title">Files & Saving</h3>
+                <h3 className="settings-section-title">Session & Files</h3>
+
+                <SettingsRow label="Default View Mode" description="Default layout when opening new files">
+                  <select
+                    className="settings-select settings-select-sm"
+                    value={settings.defaultViewMode}
+                    onChange={(e) => updateSetting('defaultViewMode', e.target.value as any)}
+                  >
+                    <option value="editor">Editor Only</option>
+                    <option value="split">Split View</option>
+                    <option value="preview">Preview Only</option>
+                  </select>
+                </SettingsRow>
+
+                <SettingsRow label="Restore Window State" description="Remember window size and position on launch">
+                  <Toggle
+                    checked={settings.rememberWindowSize}
+                    onChange={(v) => updateSetting('rememberWindowSize', v)}
+                  />
+                </SettingsRow>
+
+                <SettingsRow label="Restore Last Session" description="Reopen previously opened tabs and folders">
+                  <Toggle
+                    checked={settings.restoreLastSession}
+                    onChange={(v) => updateSetting('restoreLastSession', v)}
+                  />
+                </SettingsRow>
 
                 <SettingsRow label="Default Save Location" description={settings.defaultSaveLocation || 'Documents (Default)'}>
                   <div style={{ display: 'flex', gap: '8px' }}>
@@ -291,6 +317,21 @@ export function Settings() {
                     {updateStatus}
                   </div>
                 )}
+                <SettingsRow label="Source Code" description="View on GitHub">
+                  <button 
+                    className="settings-btn-secondary" 
+                    onClick={async () => {
+                      try {
+                        const { open } = await import('@tauri-apps/plugin-opener');
+                        await open('https://github.com/dcryptoniun/lekh');
+                      } catch {
+                        window.open('https://github.com/dcryptoniun/lekh', '_blank');
+                      }
+                    }}
+                  >
+                    GitHub
+                  </button>
+                </SettingsRow>
               </div>
             </div>
           </motion.div>
