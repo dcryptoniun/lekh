@@ -322,8 +322,8 @@ export function Settings() {
                     className="settings-btn-secondary" 
                     onClick={async () => {
                       try {
-                        const { open } = await import('@tauri-apps/plugin-opener');
-                        await open('https://github.com/dcryptoniun/lekh');
+                        const { openUrl } = await import('@tauri-apps/plugin-opener');
+                        await openUrl('https://github.com/dcryptoniun/lekh');
                       } catch {
                         window.open('https://github.com/dcryptoniun/lekh', '_blank');
                       }
